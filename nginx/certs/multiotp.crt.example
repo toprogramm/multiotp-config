@@ -1,0 +1,6 @@
+-----BEGIN CERTIFICATE-----
+# ПРИМЕР ФАЙЛА СЕРТИФИКАТА (multiotp.crt.example)
+# Настоящий локальный сертификат multiotp.crt (с SAN для IP и домена)
+# генерируется автоматически скриптом ./deploy.sh и игнорируется в Git.
+MIIF...EXAMPLE_CERTIFICATE_DATA_DO_NOT_USE_IN_PRODUCTION...
+-----END CERTIFICATE-----

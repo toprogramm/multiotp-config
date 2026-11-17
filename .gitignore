@@ -1,0 +1,15 @@
+# Примаунченные разделы данных и логов контейнеров
+data/
+logs/
+
+# Рабочий файл окружения (используйте .env.example как шаблон)
+.env
+
+# Боевые сгенерированные сертификаты и закрытые ключи TLS/SSL
+nginx/certs/*.crt
+nginx/certs/*.key
+nginx/certs/*.pem
+
+# Разрешаем публикацию файлов-примеров (.example)
+!.env.example
+!nginx/certs/*.example
