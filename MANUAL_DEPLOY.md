@@ -100,6 +100,34 @@ ls -la nginx/certs/
 openssl x509 -in nginx/certs/multiotp.crt -noout -subject -dates -ext subjectAltName
 ```
 
+### Альтернатива: Установка собственных корпоративных сертификатов (Wildcard + Root CA в форматах `.crt` и `.key`/`.rsa`)
+Если вместо генерации самоподписанного сертификата вы хотите использовать готовый корпоративный Wildcard-сертификат и корневой сертификат (`root_ca.crt`), выполните следующие действия:
+
+```bash
+# 1. Склейте ваш Wildcard-сертификат и корневой сертификат CA в единый файл multiotp.crt
+# ВАЖНО: сначала идет сертификат домена (wildcard), затем корневой/промежуточный CA!
+cat wildcard_corp.crt root_ca.crt > nginx/certs/multiotp.crt
+
+# 2. Скопируйте приватный ключ (.key или .rsa) в multiotp.key:
+cp wildcard_corp.rsa nginx/certs/multiotp.key
+# Если на ключе стоит пароль (ENCRYPTED), снимите его командой:
+# openssl rsa -in wildcard_corp.rsa -out nginx/certs/multiotp.key
+
+# 3. Убедитесь, что сертификат и ключ соответствуют друг другу (MD5-хэши должны совпасть):
+openssl x509 -noout -modulus -in nginx/certs/multiotp.crt | openssl md5
+openssl rsa -noout -modulus -in nginx/certs/multiotp.key | openssl md5
+
+# 4. Установите права доступа:
+chmod 644 nginx/certs/multiotp.crt
+chmod 600 nginx/certs/multiotp.key
+
+# 5. Если контейнер Nginx уже запущен — проверьте конфиг и перезагрузите сертификаты на лету:
+docker exec multiotp-nginx-proxy nginx -t
+docker exec multiotp-nginx-proxy nginx -s reload
+```
+> [!NOTE]
+> Учтите, что стандартный корпоративный Wildcard-сертификат (`*.corp.local`) по спецификации X.509 защищает доменные имена (`https://multiotp.corp.local/`), но не покрывает прямой IP-адрес (`https://192.168.1.81/`), если этот IP не был явно включен в блок `Subject Alternative Name (SAN)` при выпуске сертификата на корпоративном УЦ.
+
 ---
 
 ## Шаг 5. Ручная проверка конфигурационных файлов перед стартом

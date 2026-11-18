@@ -116,8 +116,29 @@ sudo ufw allow from 192.168.1.0/24 to any port 443 proto tcp
 
 ---
 
-## 5. Проверка сертификата и работоспособности
+## 5. Замена сертификатов на корпоративные (Wildcard + Root CA) и проверка работоспособности
 
+### 5.1. Замена на корпоративный Wildcard-сертификат (`.crt` + `.key`/`.rsa`)
+При наличии собственного корпоративного Wildcard-сертификата и корневого сертификата УЦ:
+```bash
+# 1. Объедините сертификат сервера и корневой сертификат в multiotp.crt (сначала wildcard, затем root CA)
+cat wildcard_corp.crt root_ca.crt > nginx/certs/multiotp.crt
+
+# 2. Поместите расшифрованный приватный ключ (.key или .rsa) в multiotp.key
+cp wildcard_corp.rsa nginx/certs/multiotp.key
+# (если ключ под паролем: openssl rsa -in wildcard_corp.rsa -out nginx/certs/multiotp.key)
+
+# 3. Проверьте совпадение модулей ключа и сертификата
+openssl x509 -noout -modulus -in nginx/certs/multiotp.crt | openssl md5
+openssl rsa -noout -modulus -in nginx/certs/multiotp.key | openssl md5
+
+# 4. Выставьте права и перезагрузите Nginx
+chmod 644 nginx/certs/multiotp.crt
+chmod 600 nginx/certs/multiotp.key
+docker exec multiotp-nginx-proxy nginx -t && docker exec multiotp-nginx-proxy nginx -s reload
+```
+
+### 5.2. Проверка сертификата и доступности сервиса
 ```bash
 # Проверить прописанные доменные имена и IP-адреса внутри локального сертификата
 openssl x509 -in nginx/certs/multiotp.crt -noout -ext subjectAltName

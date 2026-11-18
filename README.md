@@ -147,7 +147,38 @@ docker compose down
   sudo update-ca-certificates
   ```
 
-### 4.3. Сводка включенных настроек безопасности
+### 4.3. Замена сертификатов на собственные корпоративные (Wildcard + Root CA в форматах `.crt` и `.key`/`.rsa`)
+Если в вашей корпорации уже есть собственный Удостоверяющий Центр (Root CA) и выпущенный Wildcard-сертификат (например, `*.corp.local`), менять конфигурацию Nginx или Docker не нужно — достаточно заменить два файла в `nginx/certs/`:
+
+1. **Склейте ваш Wildcard-сертификат и Корневой сертификат в единый файл `multiotp.crt`** (строго в порядке: сначала сертификат сервера/домена, затем промежуточный/корневой `CA`):
+   ```bash
+   cat wildcard_corp.crt root_ca.crt > nginx/certs/multiotp.crt
+   ```
+2. **Подготовьте приватный ключ (`.key` или `.rsa`) и запишите его в `multiotp.key`**:
+   - Если ключ **без пароля**:
+     ```bash
+     cp wildcard_corp.rsa nginx/certs/multiotp.key
+     # или cp wildcard_corp.key nginx/certs/multiotp.key
+     ```
+   - Если ключ **зашифрован паролем** (`ENCRYPTED PRIVATE KEY`), снимите парольную фразу, чтобы Nginx мог запускаться автоматически:
+     ```bash
+     openssl rsa -in wildcard_corp.rsa -out nginx/certs/multiotp.key
+     ```
+3. **Проверьте совпадение пары «сертификат — приватный ключ»** (хэши MD5 должны быть одинаковыми):
+   ```bash
+   openssl x509 -noout -modulus -in nginx/certs/multiotp.crt | openssl md5
+   openssl rsa -noout -modulus -in nginx/certs/multiotp.key | openssl md5
+   ```
+4. **Выставьте права и примените изменения в Nginx без остановки сервиса**:
+   ```bash
+   chmod 644 nginx/certs/multiotp.crt
+   chmod 600 nginx/certs/multiotp.key
+   docker exec multiotp-nginx-proxy nginx -t
+   docker exec multiotp-nginx-proxy nginx -s reload
+   ```
+   *(Примечание: скрипт `./deploy.sh` при обычном запуске без флага `--regen-certs` не перезаписывает существующие файлы `multiotp.crt` и `multiotp.key`).*
+
+### 4.4. Сводка включенных настроек безопасности
 - **Минимизация поверхности атаки**: бэкенд `multiotp` полностью закрыт во внутренней сети Docker (`multiotp_internal`), незащищенный порт `80/tcp` и UDP-порты RADIUS (`1812`/`1813`) отключены; наружу смотрит **только порт `443/tcp` (HTTPS)** контейнера Nginx.
 - **Защита контейнеров**: включен `no-new-privileges:true`, файловая система Nginx работает в режиме `read_only: true` (временные файлы в `tmpfs`), конфиги и сертификаты смонтированы как `:ro` (только чтение), настроена ротация логов (`max-size: 10m`, `max-file: 5`).
 - **Защита TLS и HTTP**: включены только `TLSv1.2` и `TLSv1.3`, современные AEAD-шифры, скрыта версия Nginx (`server_tokens off`), добавлены заголовки `HSTS`, `CSP`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, а также флаги `HttpOnly; Secure; SameSite=Strict` для кук и Rate Limiting (`30 req/s`, `burst=60`) от перебора паролей/TOTP.
